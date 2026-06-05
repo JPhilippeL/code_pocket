@@ -8,6 +8,7 @@ import pickle
 
 from atom_and_bond_embedding import AtomEmbedding, BondEmbedding
 
+from constants import *
 
 def export_dict_graph_data(graph, output_path: str):
     """Export all graph data to a pickle file."""
@@ -78,34 +79,6 @@ class Pocket:
         use_embedding_edges: Whether to use learned embeddings for edges
     """
 
-    AA_3TO1 =  {"ALA": "A", "ARG": "R", "ASN": "N", "ASP": "D", "CYS": "C", "GLU": "E",
-               "GLN": "Q", "GLY": "G", "HIS": "H", "ILE": "I", "LEU": "L", "LYS": "K",
-               "MET": "M", "PHE": "F", "PRO": "P", "SER": "S", "THR": "T", "TRP": "W",
-               "TYR": "Y", "VAL": "V", "LIG": "X"}
-
-    PERIODIC_ELEMENTS = ['C', 'N', 'O', 'S', 'F', 'Si', 'P', 'Cl', 'Br', 'Mg', 'Na', 'Ca',
-                         'Fe', 'As', 'Al', 'I', 'B', 'V', 'K', 'Sb', 'Sn', 'Ag',
-                         'Pd', 'Co', 'Se', 'Ti', 'Zn', 'H', 'Li', 'Ge', 'Cu', 'Ni',
-                         'Cd', 'In', 'Mn', 'Zr', 'Cr', 'Pb', 'Unknown']
-
-    HYBRIDIZATION = ['S', 'SP', 'SP2', 'SP2D', 'SP3', 'SP3D', 'OTHER', 'UNSPECIFIED']
-
-    BOND_TYPES_COVALENT = ["NONE","UNSPECIFIED","SINGLE","DOUBLE","TRIPLE","QUADRUPLE","QUINTUPLE","HEXTUPLE","ONEANDAHALF",
-                           "TWOANDAHALF","THREEANDAHALF", "FOURANDAHALF","FIVEANDAHALF","AROMATIC","IONIC", "HYDROGEN",
-                           "THREECENTER","DATIVEONE","DATIVE","DATIVEL","DATIVER","OTHER", "ZERO","PEPTIDE"]
-    BOND_TYPES_NON_COVALENT = ["hbond", "weak_hbond", "xbond", "ionic", "metal", "aromatic", "hydrophobic",
-                               "carbonyl", "polar", "weak_polar", "CARBONPI", "CATIONPI", "METSULPHURPI", "EF", "FT"]
-
-    BOND_TYPES = {"SINGLE": 0, "DOUBLE": 1, "TRIPLE": 2, "AROMATIC": 3, "AMIDERING": 4, "hydrophobic": 5, "CARBONPI": 6,
-                  "DONORPI": 7, "METSULPHURPI": 8, "EF": 9, "vdw_clash": 10, "FE": 11, "vdw": 12, "hbond": 13,
-                  "weak_hbond": 14, "weak_polar": 14, "polar": 14, "OTHER": 15, "UNSPECIFIED": 15, "PEPTIDE":16}
-
-    ATOM_TO_IDX = {e: i for i, e in enumerate(PERIODIC_ELEMENTS)}
-    AA_TO_IDX = {a: i for i, a in enumerate(AA_3TO1.keys())}
-    HYB_TO_IDX = {h: i for i, h in enumerate(HYBRIDIZATION)}
-    BOND_TO_IDX = {b: i for i, b in enumerate(BOND_TYPES_COVALENT)}
-
-
     def __init__(self, pocket_id: str, pdb_path: str,
                  use_embedding_nodes: bool = False,
                  use_embedding_edges: bool = False,
@@ -171,7 +144,7 @@ class Pocket:
             # Search all residues within distance_threshold
             for res in ns.search(coord, distance_threshold, level="R"):
                 # Filter by amino acid type
-                if res.get_resname() in self.AA_3TO1:
+                if res.get_resname() in AA_3TO1:
                     # Filter by chain if specified
                     if chain_id is None or res.get_parent().id == chain_id:
                         residues_set.add(res)
@@ -239,7 +212,7 @@ class Pocket:
 
 
         accepted_types = {"atom-plane", "plane-plane", "group-plane"}
-        amino_acid_types = list(self.AA_3TO1.keys())
+        amino_acid_types = list(AA_3TO1.keys())
 
         entities = entry.get("interacting_entities", "")
         contact_types = set(entry.get("contact", []))
@@ -253,8 +226,8 @@ class Pocket:
                 and entry["end"].get("auth_asym_id") == chain):
 
             # Check contact and interaction type
-           # if contact_types in self.BOND_TYPES_NON_COVALENT or interaction_type in accepted_types:
-            if any(c in self.BOND_TYPES_NON_COVALENT for c in contact_types) or interaction_type in accepted_types:
+           # if contact_types in BOND_TYPES_NON_COVALENT or interaction_type in accepted_types:
+            if any(c in BOND_TYPES_NON_COVALENT for c in contact_types) or interaction_type in accepted_types:
                 # Extract relevant information
                 bgn_resname = bgn.get("label_comp_id", "")
                 end_resname = entry["end"].get("label_comp_id", "")
@@ -611,17 +584,17 @@ class Pocket:
     def _atom_features_one_hot(self, atom, resname: str) -> np.ndarray:
         """Extract one-hot encoded features for an atom."""
         element = atom.element if hasattr(atom, 'element') else 'Unknown'
-        element_vec = self._one_of_k_encoding_unk(element, self.PERIODIC_ELEMENTS)
+        element_vec = self._one_of_k_encoding_unk(element, PERIODIC_ELEMENTS)
 
         degree, num_h, hybrid = self._get_atom_features_from_dict(atom.id, resname) if aminoacids else (0.0, 0.0, "SP3")
         degree_list = [degree]
         num_h_list = [num_h]
         is_aromatic = [float(self._is_atom_aromatic(resname))]
 
-        resname_vec = self._one_of_k_encoding_unk(resname, list(self.AA_3TO1.keys()))
+        resname_vec = self._one_of_k_encoding_unk(resname, list(AA_3TO1.keys()))
 
 
-        hybridization = self._one_of_k_encoding_unk('SP3', self.HYBRIDIZATION)
+        hybridization = self._one_of_k_encoding_unk('SP3', HYBRIDIZATION)
         features = element_vec  + resname_vec + hybridization + degree_list + num_h_list + is_aromatic
 
         return np.array(features)
@@ -633,12 +606,12 @@ class Pocket:
     def _atom_features_for_embedding(self, atom, resname: str) -> Tuple:
         """Extract features as indices for embedding."""
         element = atom.element if hasattr(atom, 'element') else 'Unknown'
-        atom_idx = self.ATOM_TO_IDX.get(element, self.ATOM_TO_IDX['Unknown'])
-        aa_idx = self.AA_TO_IDX.get(resname, self.AA_TO_IDX.get('ALA', 0))
+        atom_idx = ATOM_TO_IDX.get(element, ATOM_TO_IDX['Unknown'])
+        aa_idx = AA_TO_IDX.get(resname, AA_TO_IDX.get('ALA', 0))
 
         # Continuous features (placeholders for protein atoms)
         degree, num_h, hybrid = self._get_atom_features_from_dict(atom.id, resname) if aminoacids else (0.0, 0.0, "SP3")
-        hyb_idx = self.HYB_TO_IDX.get(hybrid)
+        hyb_idx = HYB_TO_IDX.get(hybrid)
         is_donor = float(self._is_hb(resname, HBD_RESIDUE_ATOMS, atom.get_name()))
         is_acceptor = float(self._is_hb(resname, HBA_RESIDUE_ATOMS, atom.get_name()))
        # degree_list = [degree]
@@ -664,20 +637,21 @@ class Pocket:
         """Build edges within the pocket (covalent and peptide bonds)."""
         self.edges = []
         self.edge_features = []
-        bond_idx_list = []
-
-        # Build KDTree for neighbor search within residues
-        # Add edges within residues (covalent bonds)
-
+        
         start = 0
         end = 0
         bond_flexibility = 0.0
         atom_list = list(self.atom_index_map.keys())
+        
+        # Vector de ceros predefinido para las features no covalentes (siempre 0 aquí)
+        non_cov_zeros = [0.0] * len(BOND_TYPES_NON_COVALENT)
+
+        # 1. Enlaces dentro del residuo (Covalentes)
         for i, res in enumerate(self.selected_residue_ids):
             end += self.number_atoms_by_residue[res]
             res_coords = np.array(self.not_normalized_coordinates[start:end])
+            
             if res_coords.shape[0] > 0:
-                # Build KDTree for this residue
                 try:
                     tree = cKDTree(res_coords)
                     neighbors = tree.query_ball_tree(tree, cutoff)
@@ -685,77 +659,75 @@ class Pocket:
                     for j, nbrs in enumerate(neighbors):
                         if len(nbrs) > 1:
                             atom_j_idx = start + j
-                            atom_j = self.atom_nodes[atom_list[start + j]] #self.atom_nodes[atom_list[atom_j_idx
+                            atom_j = self.atom_nodes[atom_list[atom_j_idx]]
+                            
                             for k in nbrs:
                                 if k > j:
                                     atom_k_idx = start + k
                                     atom_k = self.atom_nodes[atom_list[atom_k_idx]]
                                     sorted_bond = sorted((atom_j_idx, atom_k_idx))
+                                    
                                     if sorted_bond not in self.edges:
+                                        # Determinar tipo de enlace covalente
+                                        try:
+                                            new_bond_option_1 = aminoacid_bonds.get(res.split('_')[0], {}).get(atom_j.id, {}).get(atom_k.id)
+                                            new_bond_option_2 = aminoacid_bonds.get(res.split('_')[0], {}).get(atom_k.id, {}).get(atom_j.id)
+                                            
+                                            if new_bond_option_1 not in (None, "SINGLE"):
+                                                new_bond = new_bond_option_1
+                                            elif new_bond_option_2 not in (None, "SINGLE"):
+                                                new_bond = new_bond_option_2
+                                            else:
+                                                new_bond = "SINGLE"
+                                        except (KeyError, AttributeError):
+                                            new_bond = "SINGLE"
+                                            
+                                        if new_bond not in BOND_TYPES:
+                                            print(f"Warning: Bond type {new_bond} not in BOND_TYPES")
+                                            
+                                        # Índice Covalente
+                                        cov_idx = BOND_TYPES.get(new_bond, BOND_TYPES['OTHER'])
+                                        
+                                        # Ensamblar feature vector
+                                        feat = [cov_idx] + non_cov_zeros
+                                        
+                                        if include_edge_distances:
+                                            dist = np.linalg.norm(self.coordinates[atom_j_idx] - self.coordinates[atom_k_idx])
+                                            feat.append(dist)
+                                            
+                                        feat.append(bond_flexibility)
+                                        feat = np.array(feat, dtype=np.float32)
+
+                                        # Agregar a listas (bidireccional)
                                         self.edges.append(sorted_bond)
                                         self.edges.append(sorted((atom_j_idx, atom_k_idx), reverse=True))
-                                        if simplified_edge_distances:
-                                            #bond_feat = self._one_of_k_encoding_unk("covalent", ["covalent", "non_covalent"])
-                                            #self.edge_features.append(bond_feat / np.sum(bond_feat))
-                                            try:
-                                                new_bond_option_1 = aminoacid_bonds.get(res.split('_')[0], {}).get(
-                                                    atom_j.id, {}).get(atom_k.id)
-                                                new_bond_option_2 = aminoacid_bonds.get(res.split('_')[0], {}).get(
-                                                    atom_k.id, {}).get(atom_j.id)
-                                                if new_bond_option_1 not in (None, "SINGLE"):
-                                                    new_bond = new_bond_option_1
-                                                elif new_bond_option_2 not in (None, "SINGLE"):
-                                                    new_bond = new_bond_option_2
-                                                else:
-                                                    new_bond = "SINGLE"
-                                            except (KeyError, AttributeError):
-                                                new_bond = "SINGLE"
-                                            if new_bond not in list(self.BOND_TYPES.keys()):
-                                                print(new_bond)
-                                            number = self.BOND_TYPES.get(new_bond, self.BOND_TYPES['OTHER'])
-                                            self.edge_features.append([number, bond_flexibility])
-                                            self.edge_features.append([number, bond_flexibility])
-                                        else:
-                                            try:
-                                                new_bond_option_1 = aminoacid_bonds.get(res.split('_')[0], {}).get(atom_j.id, {}).get(atom_k.id)
-                                                new_bond_option_2 = aminoacid_bonds.get(res.split('_')[0], {}).get(atom_k.id,{}).get(atom_j.id)
-                                                if new_bond_option_1 is not None:
-                                                    if new_bond_option_1!= "SINGLE":
-                                                        new_bond = new_bond_option_1
-                                                elif new_bond_option_2 is not None:
-                                                    if new_bond_option_2!= "SINGLE":
-                                                        new_bond = new_bond_option_2
-                                                else:
-                                                    new_bond = "SINGLE"
-                                            except (KeyError, AttributeError):
-                                                new_bond = "SINGLE"
-
-                                            if self.use_embedding_edges:
-                                                bond_idx_list.append(self.BOND_TO_IDX[new_bond])
-                                            else:
-                                                bond_feat = self._bond_features_one_hot(new_bond, self.BOND_TYPES_COVALENT+self.BOND_TYPES_NON_COVALENT)
-                                                self.edge_features.append([bond_feat / np.sum(bond_feat), bond_flexibility])
+                                        self.edge_features.append(feat)
+                                        self.edge_features.append(feat)
+                                        
                 except Exception as e:
                     print(f"Error building edges for residue {res}: {e}")
             start = end
 
-        # Add peptide bonds between consecutive residues
+        # 2. Enlaces peptídicos entre residuos consecutivos
         beg_res1 = 0
         end_res1 = 0
         for i in range(len(self.selected_residue_ids) - 1):
             res1 = self.selected_residue_ids[i]
             res2 = self.selected_residue_ids[i + 1]
             end_res1 += self.number_atoms_by_residue[res1]
+            
             # Check if residues are consecutive in sequence
             if int(res2.split('_')[1]) == int(res1.split('_')[1]) + 1:
                 try:
-                    atom_c = False
+                    atom_c, atom_n = False, False
+                    c_idx, n_idx = -1, -1
+                    
                     for option in range(self.number_atoms_by_residue[res1]):
                         if self.atom_nodes[atom_list[beg_res1:end_res1][option]].id == 'C':
                             atom_c = True
                             c_idx = beg_res1 + option
                             break
-                    atom_n = False
+                            
                     for option in range(self.number_atoms_by_residue[res2]):
                         if self.atom_nodes[atom_list[end_res1:end_res1+self.number_atoms_by_residue[res2]][option]].id == 'N':
                             atom_n = True
@@ -763,46 +735,42 @@ class Pocket:
                             break
 
                     if atom_c and atom_n:
-                        dist = np.linalg.norm(self.not_normalized_coordinates[c_idx] - self.not_normalized_coordinates[n_idx])
-                        if 1.2 < dist < 1.45:
-                            self.edges.append([c_idx,n_idx])
+                        dist_not_norm = np.linalg.norm(self.not_normalized_coordinates[c_idx] - self.not_normalized_coordinates[n_idx])
+                        
+                        if 1.2 < dist_not_norm < 1.45:
+                            self.edges.append([c_idx, n_idx])
                             self.edges.append([n_idx, c_idx])
-                            if simplified_edge_distances:
-                                number = self.BOND_TYPES['PEPTIDE'] #to indicate peptide bond
-                                self.edge_features.append([number, bond_flexibility])
-                                self.edge_features.append([number, bond_flexibility])
-                              #  bond_feat = self._one_of_k_encoding_unk("covalent", ["covalent", "non_covalent"])
-                              #  self.edge_features.append(bond_feat / np.sum(bond_feat))
-                            elif self.use_embedding_edges:
-                                bond_idx_list.append(self.BOND_TO_IDX.get("PEPTIDE", 14))
-                            else:
-                                bond_feat = self._bond_features_one_hot("PEPTIDE", self.BOND_TYPES_COVALENT + self.BOND_TYPES_NON_COVALENT)
-                                self.edge_features.append([bond_feat / np.sum(bond_feat), bond_flexibility])
+                            
+                            # Índice Covalente (Asignamos PEPTIDE si existe, sino SINGLE por defecto)
+                            cov_idx = BOND_TYPES.get('PEPTIDE', BOND_TYPES.get('SINGLE', 0))
+                            
+                            # Ensamblar feature vector
+                            feat = [cov_idx] + non_cov_zeros
+                            
+                            if include_edge_distances:
+                                dist_norm = np.linalg.norm(self.coordinates[c_idx] - self.coordinates[n_idx])
+                                feat.append(dist_norm)
+                                
+                            feat.append(bond_flexibility)
+                            feat = np.array(feat, dtype=np.float32)
+
+                            self.edge_features.append(feat)
+                            self.edge_features.append(feat)
 
                 except KeyError:
                     pass
             beg_res1 = end_res1
 
-        if self.use_embedding_edges and bond_idx_list:
-            self.bond_indices = torch.tensor(bond_idx_list, dtype=torch.long)
-            self.edge_features = torch.zeros(len(self.bond_indices), len(self.BOND_TYPES_NON_COVALENT))
-
-
-        # Add distances to edges if requested
-        if include_edge_distances:
-            distances = []
-            edge_features_updated = []
-            for (src_idx, tgt_idx), edge_feat in zip(self.edges, self.edge_features):
-                src_coords = self.coordinates[src_idx]
-                tgt_coords = self.coordinates[tgt_idx]
-                distance = np.linalg.norm(src_coords - tgt_coords)
-               # updated_feat = np.append(edge_feat, distance)
-                edge_features_updated.append([edge_feat[0], distance, edge_feat[-1]])
-                distances.append(distance)
-            self.edge_distances = torch.tensor(distances, dtype=torch.float).unsqueeze(-1)
-            self.edge_features = np.array(edge_features_updated)
-
+        # 3. Conversión final a Tensores
         self.num_edges = len(self.edges)
+        
+        if self.num_edges > 0:
+            # Array NumPy consolidado y luego a Tensor
+            self.edge_features = torch.tensor(np.stack(self.edge_features), dtype=torch.float32)
+            
+            # Opcional: Si mantienes la variable bond_indices en otras partes del código
+            # En este paradigma unificado, ya no la necesitas, pero la creo con ceros por si acaso.
+            self.bond_indices = torch.zeros(self.num_edges, dtype=torch.long)
 
     def _bond_features_one_hot(self, bond_type: str, bond_type_list = BOND_TYPES_COVALENT) -> np.ndarray:
         """Extract one-hot encoded features for a bond."""
@@ -989,9 +957,9 @@ class PocketCollection:
             raise ValueError("Cannot initialize embedders when use_embedding_nodes=False")
 
         self.atom_embedder = AtomEmbedding(
-            n_atoms=len(Pocket.PERIODIC_ELEMENTS),
-            n_aa=len(Pocket.AA_3TO1),
-            n_hyb=len(Pocket.HYBRIDIZATION),
+            n_atoms=len(PERIODIC_ELEMENTS),
+            n_aa=len(AA_3TO1),
+            n_hyb=len(HYBRIDIZATION),
             emb_dim_atom=emb_dim_atom,
             emb_dim_aa=emb_dim_aa,
             emb_dim_hyb=emb_dim_hyb
@@ -1004,7 +972,7 @@ class PocketCollection:
             raise ValueError("Cannot initialize embedders when use_embedding_edges=False")
 
         self.bond_embedder = BondEmbedding(
-            n_bonds=len(Pocket.BOND_TYPES_COVALENT),
+            n_bonds=len(BOND_TYPES_COVALENT),
             emb_dim=emb_dim_bond
         )
         print(f"Initialized pocket edge embedder: output dim = {self.bond_embedder.output_dim}")
@@ -1027,7 +995,7 @@ class PocketCollection:
         return ligand_idx, protein_idx, distances
 
 
-    def non_covalent_interactions_by_distance(self, pocket_graph, ligand_graph, threshold = 5.0, ligand_coords: bool = True,include_edge_distances: bool = False):
+    def non_covalent_interactions_by_distance(self, pocket_graph, ligand_graph, threshold = 5.0):
         """ Add non-covalent interactions between ligand and protein pocket.
             Updated graph representation """
 
@@ -1070,7 +1038,7 @@ class PocketCollection:
 
                             for contact in interaction['contact'].split(';'):
                                 edge_contact = [pos_ligand, pos_protein]
-                                edge_contact_features = pocket_graph._bond_features_one_hot(contact, self.BOND_TYPES_NON_COVALENT)
+                                edge_contact_features = pocket_graph._bond_features_one_hot(contact, BOND_TYPES_NON_COVALENT)
 
                                 #if include_edge_distances and not ligand_coords:
                                 #    coord_ligand = length_ligand_coords[pos_ligand]
@@ -1139,7 +1107,7 @@ class PocketCollection:
         return edges, was_tensor
 
 
-    def non_covalent_interactions(self, pocket_graph, ligand_graph, ligand_coords: bool = True,include_edge_distances: bool = False, simplified_edge_distances:bool = False):
+    def non_covalent_interactions(self, pocket_graph, ligand_graph,include_edge_distances: bool = False):
         """ Add non-covalent interactions between ligand and protein pocket.
             Updated graph representation """
 
@@ -1176,95 +1144,113 @@ class PocketCollection:
 
                             pos_protein = raw_pos_protein + ligand_count
 
-                            for contact in interaction['contact'].split(';'):
-                               # print(contact)
+                            # 1. Definimos el índice base (covalente)
+                            # Como estos son enlaces ligando-proteína, NO son covalentes. 
+                            # Podemos usar el índice de 'OTHER' o 'UNSPECIFIED'.
+                            cov_idx = BOND_TYPES.get('OTHER', 4)
+                            
+                            # 2. Inicializamos el vector multi-hot (23 dimensiones) en ceros
+                            non_cov_vector = [0.0] * len(BOND_TYPES_NON_COVALENT)
+                            
+                            # Validamos si hay contactos reales
+                            contacts = interaction['contact'].split(';')
+                            has_valid_contact = False
+                            
+                            # 3. Llenamos el vector con TODAS las interacciones simultáneamente
+                            for contact in contacts:
                                 if contact != 'proximal':
-                                    edge_contact = [pos_ligand, pos_protein]
-                                    if simplified_edge_distances:
-                                        #edge_contact_features = pocket_graph._one_of_k_encoding_unk("non_covalent", ["covalent", "non_covalent"])
-                                    #    edge_contact_features = pocket_graph.BOND_TYPES['NON_COVALENT']
-                                        edge_contact_features = [pocket_graph.BOND_TYPES.get(contact, pocket_graph.BOND_TYPES['OTHER']), bond_flexibility]
+                                    has_valid_contact = True
+                                    if contact in BOND_TYPES_NON_COVALENT:
+                                        idx = BOND_TYPES_NON_COVALENT.index(contact)
+                                        non_cov_vector[idx] = 1.0 # Activamos la interacción
                                     else:
-                                        if not self.use_embedding_edges:
-                                            edge_contact_features = pocket_graph._bond_features_one_hot(contact,pocket_graph.BOND_TYPES_COVALENT + pocket_graph.BOND_TYPES_NON_COVALENT)
-                                        else:
-                                            edge_contact_features = pocket_graph._bond_features_one_hot(contact, pocket_graph.BOND_TYPES_NON_COVALENT)
-                                    if include_edge_distances:
-                                        coord_ligand = ligand_graph['coordinates'][pos_ligand]
-                                        coord_protein = pocket_graph.coordinates[raw_pos_protein]
-                                        dist = np.linalg.norm(coord_ligand - coord_protein)
-                                        if simplified_edge_distances:
-                                            edge_contact_features = np.array([edge_contact_features[0], dist, edge_contact_features[1]])
-                                        else:
-                                            e_features = np.concatenate([edge_contact_features[0], [dist], edge_contact_features[1]])
-                                            edge_contact_features = np.array(e_features)
+                                        print(f"Warning: {contact} no está en BOND_TYPES_NON_COVALENT")
 
-                                    if edge_contact not in new_edges:# or (include_edge_distances and not ligand_coords):
-                                        new_edges.append(edge_contact)
-                                        new_edges.append([pos_protein, pos_ligand])
-                                        new_edge_features.append(edge_contact_features)
-                                        new_edge_features.append(edge_contact_features)
-                                        #if pocket_graph.bond_indices:
-                                        try:
-                                            pocket_graph.bond_indices = torch.cat([pocket_graph.bond_indices,torch.tensor([0],dtype=pocket_graph.bond_indices.dtype)],dim=0 )
-                                        except AttributeError:
-                                            pass
-                                    else:
-                                        if not simplified_edge_distances:
-                                            index = new_edges.index(edge_contact)
-                                            if not np.all(new_edge_features[index] == edge_contact_features):
-                                                updated_edge_features = np.array([e or c for e, c in
-                                                                              zip(new_edge_features[index],
-                                                                                  edge_contact_features)])
-                                                new_edge_features[index] = updated_edge_features
-                if not include_edge_distances:
-                    try:
-                        try:
-                            new_edge_features = torch.tensor(np.stack(new_edge_features), dtype=pocket_graph.edge_features.dtype,
-                                         device=pocket_graph.edge_features.device)
-                        except AttributeError:
-                            new_edge_features = torch.tensor(np.stack(new_edge_features),dtype=torch.float32)
-                        if not isinstance(pocket_graph.edge_features, torch.Tensor) and isinstance(new_edge_features, torch.Tensor):
-                            pocket_graph.edge_features = torch.cat([torch.tensor(pocket_graph.edge_features, dtype=torch.float32), new_edge_features], dim=0)
-                        else:
-                            pocket_graph.edge_features = torch.cat([pocket_graph.edge_features, new_edge_features], dim=0)
-                    except ValueError as e:
-                        print("Stack failed: shape mismatch")
-                        print(e)
-                elif include_edge_distances:
-                   # pocket_graph.edge_features.extend(np.array(new_edge_features))
-                    pocket_graph.edge_features = np.vstack((pocket_graph.edge_features, new_edge_features))
+                            # Si había interacciones válidas, construimos el enlace
+                            if has_valid_contact:
+                                edge_contact = [pos_ligand, pos_protein]
+                                
+                                # 4. Calculamos distancias si es necesario
+                                dist = 0.0
+                                if include_edge_distances:
+                                    coord_ligand = ligand_graph['coordinates'][pos_ligand]
+                                    coord_protein = pocket_graph.coordinates[raw_pos_protein]
+                                    dist = np.linalg.norm(coord_ligand - coord_protein)
+                                
+                                # 5. Ensamblamos la feature final del enlace
+                                # Formato: [Indice Covalente] + [23 binarias] + [features continuas...]
+                                edge_contact_features = [cov_idx] + non_cov_vector
+                                
+                                if include_edge_distances:
+                                    edge_contact_features.append(dist)
+                                
+                                edge_contact_features.append(bond_flexibility) # Agregamos la flexibilidad al final
+                                
+                                # Convertimos a array de numpy
+                                edge_contact_features = np.array(edge_contact_features, dtype=np.float32)
 
-                if self.use_embedding_edges and self.bond_embedder is not None:
-                    edge_features = self.bond_embedder(pocket_graph.bond_indices, pocket_graph.edge_features)
-                    pocket_graph.edge_features = edge_features
-
-                if not isinstance(ligand_graph['edge_features'], torch.Tensor):
+                                # 6. Agregamos al grafo (verificando si ya existe por si hay filas duplicadas)
+                                if edge_contact not in new_edges:
+                                    new_edges.append(edge_contact)
+                                    new_edges.append([pos_protein, pos_ligand]) # Enlace bidireccional
+                                    
+                                    new_edge_features.append(edge_contact_features)
+                                    new_edge_features.append(edge_contact_features) # Copia para la dirección inversa
+                                    
+                                    try:
+                                        pocket_graph.bond_indices = torch.cat([pocket_graph.bond_indices, torch.tensor([0], dtype=pocket_graph.bond_indices.dtype)], dim=0)
+                                    except AttributeError:
+                                        pass
+                                else:
+                                    # Si por alguna razón el CSV/diccionario tiene otra fila con los MISMOS átomos,
+                                    # simplemente hacemos un OR lógico (max) al vector multi-hot existente para no perder interacciones
+                                    index = new_edges.index(edge_contact)
+                                    # np.maximum hace una comparación elemento a elemento (mantiene los 1.0)
+                                    updated_features = np.maximum(new_edge_features[index], edge_contact_features)
+                                    new_edge_features[index] = updated_features
+                                    new_edge_features[index + 1] = updated_features # Actualizar el enlace inverso también
+                # 1. Convertir las nuevas features a un Tensor de PyTorch directamente
+                if len(new_edge_features) > 0:
+                    # Como unificamos el formato, np.stack funcionará siempre sin lanzar errores de shape
+                    new_features_tensor = torch.tensor(np.stack(new_edge_features), dtype=torch.float32)
+                    
+                    # 2. Unir features al pocket_graph
                     if isinstance(pocket_graph.edge_features, torch.Tensor):
-                        ligand_graph['edge_features'] = torch.cat([torch.tensor(ligand_graph['edge_features'], dtype=torch.float32), pocket_graph.edge_features],dim=-0)
-                    elif  not isinstance(pocket_graph.edge_features, torch.Tensor):
-                        ligand_graph['edge_features'] = torch.cat([torch.tensor(ligand_graph['edge_features'], dtype=torch.float32), torch.tensor(pocket_graph.edge_features, dtype=torch.float32)], dim=-0)
-                else:
-                     if isinstance(pocket_graph.edge_features, list):
-                         pocket_graph.edge_features = torch.from_numpy(np.array(pocket_graph.edge_features)).float()
-                     ligand_graph['edge_features'] = torch.cat([ligand_graph['edge_features'], torch.tensor(pocket_graph.edge_features, dtype=torch.float)],dim=-0)
-                if len(edges) == 2:
-                    for e in new_edges:
-                        edges[0].append(e[0])
-                        edges[1].append(e[1])
-                else:
-                    for e in new_edges:
-                        edges.append([e[0], e[1]])
-                if was_tensor:
-                    edges = torch.tensor(edges, dtype=torch.long)
+                        pocket_graph.edge_features = torch.cat([pocket_graph.edge_features.float(), new_features_tensor], dim=0)
+                    else:
+                        pocket_graph.edge_features = torch.cat([torch.tensor(pocket_graph.edge_features, dtype=torch.float32), new_features_tensor], dim=0)
+                    
+                    # (Opcional) Si haces embedding previo a la GNN
+                    if self.use_embedding_edges and getattr(self, 'bond_embedder', None) is not None:
+                        pocket_graph.edge_features = self.bond_embedder(pocket_graph.bond_indices, pocket_graph.edge_features)
 
+                    # 3. Unir features al ligand_graph
+                    if isinstance(ligand_graph['edge_features'], torch.Tensor):
+                        ligand_graph['edge_features'] = torch.cat([ligand_graph['edge_features'].float(), pocket_graph.edge_features], dim=0)
+                    else:
+                        ligand_graph['edge_features'] = torch.cat([torch.tensor(ligand_graph['edge_features'], dtype=torch.float32), pocket_graph.edge_features], dim=0)
+
+                    # 4. Agregar los nuevos enlaces a la topología (edges)
+                    if len(edges) == 2 and isinstance(edges[0], list):
+                        # Formato: [[src1, src2...], [dst1, dst2...]]
+                        for e in new_edges:
+                            edges[0].append(e[0])
+                            edges[1].append(e[1])
+                    else:
+                        # Formato: [[src1, dst1], [src2, dst2]...]
+                        edges.extend(new_edges)
+
+                    if was_tensor:
+                        edges = torch.tensor(edges, dtype=torch.long)
+
+                # 5. Actualizar la metadata del grafo final
                 ligand_graph['edges'] = edges
-               # ligand_graph['edge_features'].extend(new_edge_features)
                 ligand_graph['num_edges'] = len(ligand_graph['edges'])
                 ligand_graph['num_atoms'] = len(ligand_graph['features'])
 
+                # Actualizar IDs de la proteína
                 prot_node_id = sorted(pocket_graph.atom_index_map, key=pocket_graph.atom_index_map.get)
-                ligand_graph['prot_node_id'] = [None] *  ligand_graph['num_atoms']
+                ligand_graph['prot_node_id'] = [None] * ligand_graph['num_atoms']
                 ligand_graph['prot_node_id'][-len(prot_node_id):] = prot_node_id
 
         else:
@@ -1290,7 +1276,7 @@ class PocketCollection:
             if ligand_id == "9DDF":
                 X = 0
             try:
-                pdb_path = os.path.join(os.path.dirname(interaction_json_dir),  "Protein", "Protein_PDB",f'{ligand_id}_protein.pdb')
+                pdb_path = os.path.join(os.path.dirname(os.path.dirname(interaction_json_dir)), "Protein", "Protein_PDB",f'{ligand_id}_protein.pdb')
                 pocket = self.add_pocket(ligand_id, pdb_path)
                 if pocket is not None:
                     success = pocket.build_pocket_graph(ligand_coords=ligand_coords,min_coord=min_coord, max_coord=max_coord,
@@ -1301,9 +1287,9 @@ class PocketCollection:
                       #  if self.use_embedding_nodes:
                       #      pocket.apply_embeddings(atom_embedder=self.atom_embedder,bond_embedder=self.bond_embedder)
                         if pocket_by_distance:
-                            self.non_covalent_interactions_by_distance(pocket, collection_ligands[ligand_id], threshold= distance_threshold, ligand_coords = ligand_coords,include_edge_distances= include_edge_distances)
+                            self.non_covalent_interactions_by_distance(pocket, collection_ligands[ligand_id], threshold= distance_threshold)
                         else:
-                            self.non_covalent_interactions(pocket, collection_ligands[ligand_id], ligand_coords = ligand_coords,include_edge_distances= include_edge_distances,simplified_edge_distances=simplified_edge_distances)
+                            self.non_covalent_interactions(pocket, collection_ligands[ligand_id],include_edge_distances= include_edge_distances)
 
                        # self.graph_data[ligand_id] = pocket.to_graph_dict()
                         success_count += 1
@@ -1351,8 +1337,8 @@ if __name__ == "__main__":
     min_coord = [-28, -36, -34]
     max_coord = [39, 37, 42]
 
-    DATA_PATH = r"C:\Users\natal\code_binding_data_and_results\data\Mpro-URV"  # Path for MPro data
-    results_folder = r"C:\Users\natal\code_binding_data_and_results\results\Mpro-URV"
+    DATA_PATH = "/home/philippe/Documents/Databases/URV_Database_2025_Octubre"  # Path for MPro data
+    results_folder = "/home/philippe/Documents/Databases/PruebaResultadosPocketCode"
     ligand_sdf_directory = os.path.join(DATA_PATH, "Ligand", "Ligand_SDF")
     exported_ligand_path = os.path.join(results_folder, "ligand_graphs.pkl")
     split_data_folder = "split_data"

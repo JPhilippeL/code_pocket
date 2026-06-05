@@ -14,6 +14,7 @@ from rdkit.Chem.rdchem import Mol
 RDLogger.DisableLog('rdApp.*')
 
 from atom_and_bond_embedding import *
+from constants import *
 
 class EmbeddingEncoder(torch.nn.Module):
     def __init__(self, atom_emb_dim, hybrid_emb_dim, bond_emb_dim):
@@ -58,47 +59,6 @@ class Ligand:
         atom_names_pdb: Atom names from PDB file (if available)
         num_atoms: Number of non-hydrogen atoms
     """
-
-    # --- Definiciones de Patrones SMARTS para H-Bonds ---
-    # Donador: Generalmente N u O con al menos un H unido
-    HBD_PATTERN = Chem.MolFromSmarts('[$([N;!H0;v3,v4&+1]),$([O,S;H1;+0]),n&H1&+0]')
-
-    # Aceptor: N u O con pares libres disponibles (definición estándar de Lipinski)
-    HBA_PATTERN = Chem.MolFromSmarts(
-        '[$([O,S;H1;v2;!$(*-*=[O,N,P,S])]),$([O,S;H0;v2]),$([O,S;-]),$([N;v3;!$(N-*=[O,N,P,S])]),n&H0&+0,$([o,s;+0;!$([o,s]:n);!$([o,s]:c:n)])]')
-
-    # Patrón para enlace rotable: Enlace simple (-), no en anillo (!@), entre átomos no terminales (!D1)
-    FLEXIBILITY_BOND_PATTERN = Chem.MolFromSmarts('[!$(*#*)&!D1]-&!@[!$(*#*)&!D1]')
-
-    PERIODIC_ELEMENTS = ['C', 'N', 'O', 'S', 'F', 'Si', 'P', 'Cl', 'Br', 'Mg', 'Na', 'Ca',
-                         'Fe', 'As', 'Al', 'I', 'B', 'V', 'K', 'Sb', 'Sn', 'Ag',
-                         'Pd', 'Co', 'Se', 'Ti', 'Zn', 'H', 'Li', 'Ge', 'Cu',  'Ni',
-                         'Cd', 'In', 'Mn', 'Zr', 'Cr', 'Pb', 'Unknown']
-
-    HYBRIDIZATION = ['S', 'SP', 'SP2', 'SP2D', 'SP3', 'SP3D', 'OTHER', 'UNSPECIFIED']
-
-    BOND_TYPES_COVALENT = ["NONE","SINGLE","DOUBLE","TRIPLE","QUADRUPLE","QUINTUPLE","HEXTUPLE","ONEANDAHALF",
-                           "TWOANDAHALF","THREEANDAHALF", "FOURANDAHALF","FIVEANDAHALF","AROMATIC","IONIC", "HYDROGEN",
-                           "THREECENTER","DATIVEONE","DATIVE","DATIVEL","DATIVER","OTHER", "ZERO","PEPTIDE"]
-
-
-
-    BOND_TYPES_NON_COVALENT = ["hbond","weak_hbond", "xbond", "ionic", "metal", "aromatic", "hydrophobic",
-                               "carbonyl", "polar","weak_polar","CARBONPI", "CATIONPI", "METSULPHURPI", "EF", "FT"]
-
-    BOND_TYPES = {"SINGLE":0,"DOUBLE":1,"TRIPLE":2,"AROMATIC":3, "AMIDERING": 4, "hydrophobic": 5, "CARBONPI": 6,
-                  "DONORPI": 7,"METSULPHURPI": 8, "EF": 9,  "vdw_clash": 10, "FE": 11, "vdw": 12, "hbond": 13,
-                  "weak_hbond": 14, "weak_polar": 14, "polar": 14,"OTHER":15,"UNSPECIFIED":15, "PEPTIDE":16}
-
-    AA_3TO1 = {"ALA": "A", "ARG": "R", "ASN": "N", "ASP": "D", "CYS": "C", "GLU": "E",
-               "GLN": "Q", "GLY": "G", "HIS": "H", "ILE": "I", "LEU": "L", "LYS": "K",
-               "MET": "M", "PHE": "F", "PRO": "P", "SER": "S", "THR": "T", "TRP": "W",
-               "TYR": "Y", "VAL": "V", "LIG": "X"}
-
-    ATOM_TO_IDX = {e: i for i, e in enumerate(PERIODIC_ELEMENTS)}
-    AA_TO_IDX = {a: i for i, a in enumerate(AA_3TO1.keys())}
-    HYB_TO_IDX = {h: i for i, h in enumerate(HYBRIDIZATION)}
-    BOND_TO_IDX = {b: i for i, b in enumerate(BOND_TYPES_COVALENT)}
 
     def __init__(self, sdf_path: str, node_feature_selection: int = 0,
                  use_embedding_nodes: bool = False, use_embedding_edges: bool = False):
@@ -175,12 +135,12 @@ class Ligand:
         # Compute charges
         rdPartialCharges.ComputeGasteigerCharges(self.mol)
 
-        hbd_matches = self.mol.GetSubstructMatches(self.HBD_PATTERN)
+        hbd_matches = self.mol.GetSubstructMatches(HBD_PATTERN)
         self.hbd_indices = {idx[0] for idx in hbd_matches}  # Usamos set para búsqueda rápida O(1)
 
-        hba_matches = self.mol.GetSubstructMatches(self.HBA_PATTERN)
+        hba_matches = self.mol.GetSubstructMatches(HBA_PATTERN)
         self.hba_indices = {idx[0] for idx in hba_matches}
-        flexible_matches = self.mol.GetSubstructMatches(Ligand.FLEXIBILITY_BOND_PATTERN)
+        flexible_matches = self.mol.GetSubstructMatches(FLEXIBILITY_BOND_PATTERN)
 
         for match in flexible_matches:
             # Añadimos ambas direcciones porque nuestro grafo será bidireccional
@@ -249,7 +209,8 @@ class Ligand:
         else:
             self._extract_atom_features_one_hot()
         if not len(self.features) == len(self.atom_names_pdb):
-            print(f'{self.sdf_path.split('\\')[-1].split('_')[0]}: NOT SAME NUMBER OF NODES AND ATOMS NAMES IN THE PDB, CHECK IT')
+            print("Error")
+            # print(f'{self.sdf_path.split('//')[-1].split('_')[0]}: NOT SAME NUMBER OF NODES AND ATOMS NAMES IN THE PDB, CHECK IT')
         self.num_atoms = len(self.features)
 
 
@@ -309,12 +270,12 @@ class Ligand:
 
 
         atom_symbol = atom.GetSymbol()
-        atom_idx = self.ATOM_TO_IDX.get(atom_symbol, self.ATOM_TO_IDX['Unknown'])
+        atom_idx = ATOM_TO_IDX.get(atom_symbol, ATOM_TO_IDX['Unknown'])
 
-        aa_idx = self.AA_TO_IDX.get("LIG", self.AA_TO_IDX['LIG'])
+        aa_idx = AA_TO_IDX.get("LIG", AA_TO_IDX['LIG'])
 
         hyb = atom.GetHybridization().name
-        hyb_idx = self.HYB_TO_IDX.get(hyb, self.HYB_TO_IDX['UNSPECIFIED'])
+        hyb_idx = HYB_TO_IDX.get(hyb, HYB_TO_IDX['UNSPECIFIED'])
 
         # Continuous features
         degree = atom.GetDegree() / 10.0
@@ -351,15 +312,15 @@ class Ligand:
         Returns:
             Feature vector as numpy array
         """
-        element_vec = self._one_of_k_encoding_unk(atom.GetSymbol(), self.PERIODIC_ELEMENTS)
+        element_vec = self._one_of_k_encoding_unk(atom.GetSymbol(), PERIODIC_ELEMENTS)
         degree = [atom.GetDegree() / 10.0]
         num_h = [atom.GetTotalNumHs() / 10.0]
         is_aromatic = [float(atom.GetIsAromatic())]
-        resname_vec = self._one_of_k_encoding_unk("LIG", list(self.AA_3TO1.keys()))
+        resname_vec = self._one_of_k_encoding_unk("LIG", list(AA_3TO1.keys()))
 
         if self.node_feature_selection == 0:
             hybrid = atom.GetHybridization().name
-            hybridization = self._one_of_k_encoding_unk(hybrid, self.HYBRIDIZATION)
+            hybridization = self._one_of_k_encoding_unk(hybrid, HYBRIDIZATION)
             features = element_vec + resname_vec + hybridization + degree + num_h + is_aromatic
 
         elif self.node_feature_selection == 1:
@@ -461,29 +422,61 @@ class Ligand:
         self.num_edges = len(self.edges)
 
 
-    def _simplified_edge_features(self):
-        """Build edges with one-hot encoded bond features."""
+    def _simplified_edge_features(self, include_edge_distances: bool = False):
+        """Build edges with one-hot encoded bond features for the ligand."""
         self.edges = []
         self.edge_features = []
+        
+        # Vector de ceros para las interacciones no covalentes
+        non_cov_zeros = [0.0] * len(BOND_TYPES_NON_COVALENT)
+
         for bond in self.mol.GetBonds():
             a, b = bond.GetBeginAtomIdx(), bond.GetEndAtomIdx()
+            
             # Skip hydrogen atoms
             if a not in self.index_H_atoms and b not in self.index_H_atoms:
                 if a < self.num_atoms and b < self.num_atoms:
-                    self.edges.append([a, b])
-                    self.edges.append([b,a])
-                   # bond_feat =  self._one_of_k_encoding_unk("covalent", ["covalent","non_covalent"])
+                    
+                    # 1. Obtener Índice Covalente
                     bond_type = bond.GetBondType().name
-                    if bond_type not in list(self.BOND_TYPES.keys()):
-                        print(bond_type)
-                    bond_flexibility = 1.0 if (a, b) in self.flexible_edges else 0.0
-                    number = self.BOND_TYPES.get(bond_type, self.BOND_TYPES['OTHER'])
-                    self.edge_features.append([number, bond_flexibility])
-                    self.edge_features.append([number, bond_flexibility])
-                    #try:
-                    #    self.edge_features.append(bond_feat / sum(bond_feat))
-                    #except TypeError:
-                    #    self.edge_features.append(np.array(bond_feat) / sum(bond_feat))
+                    if bond_type not in BOND_TYPES:
+                        print(f"Warning: Bond type {bond_type} not in BOND_TYPES")
+                    
+                    cov_idx = BOND_TYPES.get(bond_type, BOND_TYPES['OTHER'])
+                    
+                    # 2. Determinar Flexibilidad
+                    bond_flexibility = 1.0 if (a, b) in getattr(self, 'flexible_edges', []) else 0.0
+                    
+                    # 3. Ensamblar el vector de características (Feature Vector)
+                    # Formato: [Indice Covalente] + [23 Ceros]
+                    feat = [cov_idx] + non_cov_zeros
+                    
+                    # 4. Añadir Distancia (Si está activado)
+                    if include_edge_distances:
+                        # NOTA: Asegúrate de que 'self.coordinates' es el nombre correcto 
+                        # de la variable donde guardas las coordenadas 3D del ligando.
+                        dist = np.linalg.norm(self.coordinates[a] - self.coordinates[b])
+                        feat.append(dist)
+                    
+                    # 5. Añadir Flexibilidad al final
+                    feat.append(bond_flexibility)
+                    
+                    # Convertir a numpy array de float32
+                    feat = np.array(feat, dtype=np.float32)
+
+                    # 6. Añadir al grafo (bidireccional)
+                    self.edges.append([a, b])
+                    self.edges.append([b, a])
+                    self.edge_features.append(feat)
+                    self.edge_features.append(feat)
+
+        # 7. Conversión final a Tensores de PyTorch
+        if len(self.edges) > 0:
+            self.edge_features = torch.tensor(np.stack(self.edge_features), dtype=torch.float32)
+            
+            # Opcional: Crear el tensor de bond_indices con ceros (si lo requieres en otra parte de tu pipeline)
+            if getattr(self, 'use_embedding_edges', False):
+                self.bond_indices = torch.zeros(len(self.edges), dtype=torch.long)
 
     def _build_edges_one_hot(self):
         """Build edges with one-hot encoded bond features."""
@@ -521,34 +514,44 @@ class Ligand:
                     edges.append([a, b])
                    # edges.append([b, a])
                     bond_type = bond.GetBondType().name
-                    if bond_type not in list(self.BOND_TYPES.keys()):
+                    if bond_type not in list(BOND_TYPES.keys()):
                         print(bond_type)
-                    bond_idx = self.BOND_TO_IDX.get(bond_type, self.BOND_TO_IDX['OTHER'])
+                    bond_idx = BOND_TO_IDX.get(bond_type, BOND_TO_IDX['OTHER'])
                     bond_idx_list.append(bond_idx)
 
         self.edges = edges
         self.bond_indices = torch.tensor(bond_idx_list, dtype=torch.long)
         # Keep edge_features empty - will be filled by embedding layer
-        self.edge_features = torch.zeros(len(self.bond_indices), len(self.BOND_TYPES_NON_COVALENT))
+        self.edge_features = torch.zeros(len(self.bond_indices), len(BOND_TYPES_NON_COVALENT))
 
 
     def _bond_features_one_hot(self, bond_type: str) -> np.ndarray:
         """Extract features for a bond."""
-        return np.array(self._one_of_k_encoding_unk(bond_type,self.BOND_TYPES_COVALENT + self.BOND_TYPES_NON_COVALENT))
+        return np.array(self._one_of_k_encoding_unk(bond_type,BOND_TYPES_COVALENT + BOND_TYPES_NON_COVALENT))
 
 
     def _add_edge_distances(self):
-        """Add Euclidean distances to edge features."""
+        """Add Euclidean distances to edge features without losing non-covalent multi-hot vectors."""
         edge_features_updated = []
+        
         for (src_idx, tgt_idx), edge_feat in zip(self.edges, self.edge_features):
             src_coords = self.coordinates[src_idx]
             tgt_coords = self.coordinates[tgt_idx]
 
+            # Calculamos la distancia
             distance = np.linalg.norm(src_coords - tgt_coords)
-           # updated_feat = np.append(edge_feat, distance)
-            edge_features_updated.append([edge_feat[0], distance, edge_feat[-1]])
+            
+            # edge_feat tiene forma: [Covalente, NC_1, ..., NC_23, Flexibilidad]
+            # Queremos insertar la distancia justo antes de la flexibilidad (el último elemento)
+            
+            # Opción 1: Slicing de listas/arrays
+            # Tomamos todo MENOS el último elemento, añadimos distancia, añadimos el último
+            updated_feat = list(edge_feat[:-1]) + [distance] + [edge_feat[-1]]
+            
+            edge_features_updated.append(updated_feat)
 
-        self.edge_features = np.array(edge_features_updated)
+        # Actualizamos el atributo (asegurándonos de usar np.float32 para PyTorch)
+        self.edge_features = np.array(edge_features_updated, dtype=np.float32)
 
     @staticmethod
     def _normalize_3d_coord(coord: List[float], min_coord: List[float],
@@ -816,9 +819,9 @@ class LigandCollection:
             raise ValueError("Cannot initialize node embedders when use_embeddings_nodes=False")
 
         self.atom_embedder = AtomEmbedding(
-            n_atoms=len(Ligand.PERIODIC_ELEMENTS),
-            n_aa=len(Ligand.AA_3TO1),
-            n_hyb=len(Ligand.HYBRIDIZATION),
+            n_atoms=len(PERIODIC_ELEMENTS),
+            n_aa=len(AA_3TO1),
+            n_hyb=len(HYBRIDIZATION),
             emb_dim_atom=emb_dim_atom,
             emb_dim_aa=emb_dim_aa,
             emb_dim_hyb=emb_dim_hyb

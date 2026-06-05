@@ -2,7 +2,6 @@ from ligand_class_embedding import *
 from split_data import *
 #from fold_training_functions import *
 from protein_class_embedding import *
-from summary_results import *
 
 def folder_name(ligand_graph, protein_interaction, protein_as_sequence, include_coords, include_edge_distances):
     word = ''
@@ -84,7 +83,7 @@ def create_pocket_collection(collection_ligands, pockets_interaction, affinity_d
 
     return ligand_protein_collection, data_list
 
-def run_pipeline(name,ligand_graph,protein_interaction,protein_as_sequence,protein_sequences_dict,ligand_sdf_directory,
+def run_pipeline(name,ligand_graph,protein_interaction,protein_as_sequence,ligand_sdf_directory,
                  interaction_json_dir,results_folder,split_data_folder,DATA_PATH,min_coord,max_coord,use_embedding_nodes,
                  use_embedding_edges,include_coords,include_edge_distances,pocket_by_distance,simplified_edge_distances, num_layers,repetitions =1):
     collection_ligands = None
@@ -107,7 +106,7 @@ def run_pipeline(name,ligand_graph,protein_interaction,protein_as_sequence,prote
         data_list = torch.load(os.path.join(folder, f"{f_name}.pt"),weights_only=False)
             # common_keys = list(set(ligands_dict.keys()) & set(protein_sequences_dict.keys()))
 
-    distance_threshold = 3.0
+    distance_threshold = 7.0
     #pocket_data_list = torch.load(os.path.join(results_folder, f"{name}.pt"),weights_only=False)
 
     if protein_interaction:
@@ -149,7 +148,7 @@ def run_pipeline(name,ligand_graph,protein_interaction,protein_as_sequence,prote
 
 if __name__ == "__main__":
 
-    DATA_PATH = r"C:\Users\natal\code_binding_data_and_results\data\Mpro-URV"  # Path for MPro data
+    DATA_PATH = "/home/philippe/Documents/Databases/URV_Database_2025_Octubre"  # Path for MPro data
     min_coord = [-28, -36, -34]
     max_coord = [39, 37, 42]
     use_embedding_nodes = False
@@ -161,11 +160,11 @@ if __name__ == "__main__":
    # include_edge_distances = False
    # protein_as_sequence = False
    # protein_interaction = False
-    interaction_json_dir = os.path.join(DATA_PATH, "Interaction")
+    interaction_json_dir = "/home/philippe/Documents/Databases/URV_Database_2025_Octubre/Binding/Interaction_JSON"
     pocket_by_distance = False
   #  ligand_graph = True
 
-    r_init_folder = r"C:\Users\natal\code_binding_data_and_results\results\Mpro-URV"
+    r_init_folder = "/home/philippe/Documents/Databases"
     for num_layers in [2]:#[2,3,4,5]
         for node_emb, edge_emb, simpl, letter in [[True, False, True, "E3_node_id"]]:#, [True, False, False, "B"], [False, False, False, "D"],[False, True, False, "C"]]: #    for node_emb, edge_emb, simpl, letter in [ [True, False, True, "E"], [False, False, True, "F"],[True, True, False, "A"], [True, False, False, "B"], [False, True, False, "C"],[False, False, False, "D"]]:
 
@@ -174,16 +173,13 @@ if __name__ == "__main__":
             ligand_sdf_directory = os.path.join(DATA_PATH, "Ligand", "Ligand_SDF")
             split_data_folder = "split_data"
 
-            protein_df = check_affinity_file(DATA_PATH, True,r';', 'info.csv', 15)
-            protein_sequences_dict = df_to_dict(protein_df, "Protein Sequence")
-
             repetitions = 5
 
             for ligand_graph, protein_interaction, protein_as_sequence, include_coords, include_edge_distances in [[True,True,False,False,True], [True,False,False,False,True]]:#,[True,False,False,False,False],[True,True,False,False,False]   [[True,False,False,False,False],[True,False,False,False,True],[True,True,False,False,False],[True,True,False,False,True]]:#[True,False,False,False,False],[True,False,False,False,True],[True,False,False,True,False],[True,False,False,True,True],[True,True,False,False,False],[True,True,False,False,True],[True,True,False,True,False],[True,True,False,True,True]t[True,True,False,False,False],[True,True,False,False,False],[True,True,False,True,False],,[False,False,True,False,False]]:
                 name = folder_name(ligand_graph, protein_interaction, protein_as_sequence, include_coords,include_edge_distances)
                 results_folder = os.path.join(r_folder, name)
 
-                run_pipeline(name, ligand_graph, protein_interaction, protein_as_sequence, protein_sequences_dict,ligand_sdf_directory,
+                run_pipeline(name, ligand_graph, protein_interaction, protein_as_sequence,ligand_sdf_directory,
                              interaction_json_dir, results_folder, split_data_folder, DATA_PATH, min_coord, max_coord,node_emb,
                              edge_emb, include_coords, include_edge_distances, pocket_by_distance, simpl,num_layers,repetitions)
             #summary_results_main(r_folder)
